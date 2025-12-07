@@ -1,83 +1,122 @@
-import { BitwardenClient, ClientSettings, DeviceType, LogLevel } from '@bitwarden/sdk-wasm';
+// Cloudflare Pages Function for Gemini API proxy
+// This runs on Cloudflare's edge, not in browser
 
 interface Env {
-  BITWARDEN_ACCESS_TOKEN: string;
-  BITWARDEN_ORGANIZATION_ID: string;
-  BITWARDEN_SECRET_ID: string;
+  GEMINI_API_KEY?: string;
 }
 
-export const onRequestPost: PagesFunction<Env> = async (context) => {
+export async function onRequestPost(context: { request: Request; env: Env }) {
+  const { request, env } = context;
+
+  // CORS headers
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type',
   };
 
+  // Handle preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
-    if (context.request.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 200,
-        headers: corsHeaders,
-      });
+    // Get API key from environment
+    const apiKey = env.GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: 'API key not configured' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    const settings: ClientSettings = {
-      apiUrl: 'https://api.bitwarden.com',
-      identityUrl: 'https://identity.bitwarden.com',
-      userAgent: 'Cloudflare-Pages-Function',
-      deviceType: DeviceType.SDK,
+    // Parse request body
+    const body = await request.json() as {
+      prompt: string;
+      systemPrompt?: string;
+      model?: string;
+      maxTokens?: number;
     };
 
-    const client = new BitwardenClient(settings, LogLevel.Info);
+    // Call Gemini API
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${body.model || 'gemini-pro'}:generateContent?key=${apiKey}`;
     
-    await client.auth().loginAccessToken(context.env.BITWARDEN_ACCESS_TOKEN);
-
-    const secret = await client.secrets().get(context.env.BITWARDEN_SECRET_ID);
-    const apiKey = secret.value;
-
-    const requestBody = await context.request.text();
-    const requestHeaders = Object.fromEntries(context.request.headers.entries());
-
-    const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
+    const geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-        ...Object.fromEntries(
-          Object.entries(requestHeaders).filter(([key]) => 
-            !['host', 'cf-connecting-ip', 'cf-ray', 'x-forwarded-for'].includes(key.toLowerCase())
-          )
-        ),
       },
-      body: requestBody,
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: body.systemPrompt 
+              ? `${body.systemPrompt}\n\n${body.prompt}` 
+              : body.prompt
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: body.maxTokens || 1000,
+        }
+      })
     });
 
-    const responseBody = await geminiResponse.text();
-    const responseHeaders = Object.fromEntries(geminiResponse.headers.entries());
+    if (!geminiResponse.ok) {
+      const error = await geminiResponse.text();
+      return new Response(
+        JSON.stringify({ error: `Gemini API error: ${error}` }),
+        { 
+          status: geminiResponse.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
-    return new Response(responseBody, {
-      status: geminiResponse.status,
-      headers: {
-        ...corsHeaders,
-        ...responseHeaders,
-      },
-    });
+    const data = await geminiResponse.json() as {
+      candidates?: Array<{
+        content: {
+          parts: Array<{ text: string }>;
+        };
+      }>;
+      usageMetadata?: {
+        promptTokenCount: number;
+        candidatesTokenCount: number;
+        totalTokenCount: number;
+      };
+    };
 
-  } catch (error) {
-    console.error('Gemini proxy error:', error);
+    // Extract text from response
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
+    // Return formatted response
     return new Response(
       JSON.stringify({
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        text,
+        content: text,
+        usage: data.usageMetadata ? {
+          promptTokens: data.usageMetadata.promptTokenCount,
+          completionTokens: data.usageMetadata.candidatesTokenCount,
+          totalTokens: data.usageMetadata.totalTokenCount
+        } : undefined
       }),
       {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+
+  } catch (error) {
+    console.error('Proxy error:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }),
+      { 
         status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
-};
+}
