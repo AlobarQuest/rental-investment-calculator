@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "migration_id": "20251207-190213",
+  "started_at": "2025-12-07T19:02:13.283772Z",
+  "last_updated": "2025-12-07T19:02:13.291930Z",
+  "current_phase": 1,
+  "total_phases": 6,
+  "phases": {
+    "1": {
+      "name": "Infrastructure Setup",
+      "status": "in_progress",
+      "started_at": "2025-12-07T19:02:13.291921Z"
+    },
+    "2": {
+      "name": "Data Layer",
+      "status": "pending"
+    },
+    "3": {
+      "name": "Business Logic Layer",
+      "status": "pending"
+    },
+    "4": {
+      "name": "Service Layer",
+      "status": "pending"
+    },
+    "5": {
+      "name": "UI Layer",
+      "status": "pending"
+    },
+    "6": {
+      "name": "Testing Infrastructure",
+      "status": "pending"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "migration_dir": "migration",
+  "prototype_repo": "/home/devon/Projects/rate-shift-calculator",
+  "production_repo": "/home/devon/Projects/rental-investment-calculator"
+}
