@@ -1,41 +1,26 @@
-import { BitwardenClient, LogLevel } from 'bitwarden-sdk';
+// Secret management for browser environment
+// For production, secrets should be handled server-side
 
 /**
- * Retrieves a secret from Bitwarden Secrets Manager
- * @param secretId - The unique identifier of the secret to retrieve
- * @returns Promise that resolves to the secret value
- * @throws Error if secret retrieval fails or access token is missing
+ * Get API key from environment
+ * In development: uses import.meta.env
+ * In production: should use serverless function
  */
-export async function getSecret(secretId: string): Promise<string> {
-  const accessToken = process.env.BWS_ACCESS_TOKEN;
+export function getApiKey(): string {
+  // Check Vite environment variables
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   
-  if (!accessToken) {
-    throw new Error('BWS_ACCESS_TOKEN environment variable is not set');
+  if (!apiKey) {
+    console.warn('API key not configured. Using proxy endpoint.');
+    return ''; // Proxy will handle authentication
   }
+  
+  return apiKey;
+}
 
-  let client: BitwardenClient | null = null;
-
-  try {
-    client = new BitwardenClient({
-      accessToken,
-      logLevel: LogLevel.Info,
-    });
-
-    const secret = await client.secrets().get(secretId);
-    
-    if (!secret || !secret.value) {
-      throw new Error(`Secret with ID ${secretId} not found or has no value`);
-    }
-
-    return secret.value;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to retrieve secret: ${error.message}`);
-    }
-    throw new Error('Failed to retrieve secret: Unknown error occurred');
-  } finally {
-    if (client) {
-      await client.close();
-    }
-  }
+/**
+ * Check if using API proxy
+ */
+export function useProxy(): boolean {
+  return !import.meta.env.VITE_GEMINI_API_KEY;
 }

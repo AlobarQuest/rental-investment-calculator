@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+// import { render, screen } from '@testing-library/react';
+// import userEvent from '@testing-library/user-event';
 
 // Import your components here
 // import { MyComponent } from '../components/MyComponent';
