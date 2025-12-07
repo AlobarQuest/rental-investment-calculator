@@ -71,3 +71,24 @@ export default defineConfig([
   },
 ])
 ```
+
+
+## Data Strategy
+
+This application uses **ephemeral in-memory state** for data management.
+
+### Current Approach
+- All application data is stored in React component state
+- No persistence layer (localStorage, database)
+- Data is reset on page refresh
+
+### Rationale
+- Simplifies initial implementation
+- No privacy concerns with storing financial data
+- Users can calculate scenarios without data retention
+
+### Future Considerations
+- localStorage persistence could be added for user convenience
+- Session storage for temporary data across page navigations
+- Backend API for saved scenarios (requires authentication)
+
